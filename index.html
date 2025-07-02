@@ -270,16 +270,75 @@
   </div>
 </div>
 
-<script>
-  // --- Dados locais (carregar/salvar localStorage) ---
-  let materiais = JSON.parse(localStorage.getItem('materiais')) || [];
-  let obras = JSON.parse(localStorage.getItem('obras')) || [];
-  let obraSelecionada = null;
+<script type="module">
+  // 1. Importe o onValue junto com os outros
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-app.js";
+  import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-database.js";
 
-  function salvarLocal() {
-    localStorage.setItem('materiais', JSON.stringify(materiais));
-    localStorage.setItem('obras', JSON.stringify(obras));
-  }
+  const firebaseConfig = {
+    apiKey: "AIzaSyCs1vNxUfOb8TsnsNSn0oxG1b10ThiGAMo",
+    authDomain: "estoque-2-9d0ab.firebaseapp.com",
+    databaseURL: "https://estoque-2-9d0ab-default-rtdb.firebaseio.com",
+    projectId: "estoque-2-9d0ab",
+    storageBucket: "estoque-2-9d0ab.appspot.com",
+    messagingSenderId: "297905672796",
+    appId: "1:297905672796:web:435489fe41e931ea988c99"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // Exporta globalmente pra usar em outros scripts (opcional)
+  window.db = db;
+  window.ref = ref;
+  window.set = set;
+  window.get = get;
+  window.child = child;
+  window.onValue = onValue;
+</script>
+
+<script>
+  let materiais = [];
+let obras = [];
+let obraSelecionada = null; // Definido para controle da obra ativa
+
+function escutarDados() {
+  const dadosRef = ref(db, '/');
+  onValue(dadosRef, (snapshot) => {
+    const dados = snapshot.val();
+    if (dados) {
+      materiais = dados.materiais || [];
+      obras = dados.obras || [];
+    } else {
+      materiais = [];
+      obras = [];
+    }
+    filtrarMateriais();
+    filtrarObras();
+
+    if (obraSelecionada) {
+      const obraAtualizada = obras.find(o => o.id === obraSelecionada.id);
+      if (obraAtualizada) {
+        obraSelecionada = obraAtualizada;
+        mostrarDetalhesObra(obraSelecionada.id);
+      } else {
+        obraSelecionada = null;
+        document.querySelector('#detalhes-obra-table tbody').innerHTML = '';
+      }
+    }
+  }, (error) => {
+    console.error("Erro na escuta de dados:", error);
+  });
+}
+
+function salvarLocal() {
+  set(ref(db, '/'), { materiais, obras })
+    .catch((error) => {
+      console.error('Erro ao salvar dados:', error);
+    });
+}
+
+escutarDados(); // INICIA a escuta logo ao carregar o app
 
   // --- Filtrar e renderizar Materiais ---
   function filtrarMateriais() {
@@ -303,8 +362,10 @@
           <td><input type="number" min="0" step="0.01" id="saiu-${idx}" placeholder="0" /></td>
           <td>
             <select id="obra-select-${idx}">
-              <option value="">---</option>
-              ${obras.map(o => `<option value="${o.id}">${o.nome}</option>`).join('')}
+            <option value="">---</option>
+            ${obras.map(o => `
+            <option value="${o.id}" ${obraSelecionada && obraSelecionada.id === o.id ? 'selected' : ''}>${o.nome}</option>
+            `).join('')}
             </select>
           </td>
           <td><input type="number" min="0" step="0.01" id="voltou-${idx}" placeholder="0" /></td>
